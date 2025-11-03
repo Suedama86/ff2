@@ -4,4 +4,3 @@ import "./index.css";
 import "./components/message-styles.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
- />);
