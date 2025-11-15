@@ -7,23 +7,7 @@ import { DEFAULT_MODEL, DEFAULT_TEMPERATURE, getModelById } from "@/lib/models";
 import { nanoid } from "nanoid";
 import { useToast } from "@/hooks/use-toast";
 import { saveConversation, createConversation } from "@/lib/storage";
-
-declare global {
-  interface Window {
-    puter: {
-      ai: {
-        chat: (
-          prompt: string | Array<{ role: string; content: string }>,
-          options?: {
-            model?: string;
-            temperature?: number;
-            stream?: boolean;
-          }
-        ) => Promise<any>;
-      };
-    };
-  }
-}
+import { ensurePuterAuth, PuterAuthError } from "@/lib/puter-auth";
 
 interface ChatPageProps {
   selectedModel: string;
@@ -112,6 +96,35 @@ export default function ChatPage({ selectedModel, temperature, systemPrompt, pre
     try {
       abortControllerRef.current = new AbortController();
 
+      // Ensure user is authenticated before calling Puter AI API
+      try {
+        await ensurePuterAuth({ popup: true, timeoutMs: 60000 });
+      } catch (authError) {
+        if (authError instanceof PuterAuthError) {
+          let errorMessage = "Autentisering misslyckades. ";
+          
+          switch (authError.code) {
+            case 'NOT_AVAILABLE':
+              errorMessage += "Puter SDK är inte tillgängligt.";
+              break;
+            case 'POPUP_BLOCKED':
+              errorMessage += "Popup blockerades. Tillåt popups för denna sida och försök igen.";
+              break;
+            case 'TIMEOUT':
+              errorMessage += "Autentisering tog för lång tid.";
+              break;
+            case 'USER_CANCELLED':
+              errorMessage += "Autentisering avbröts.";
+              break;
+            default:
+              errorMessage += "Försök igen.";
+          }
+          
+          throw new Error(errorMessage);
+        }
+        throw authError;
+      }
+
       const chatOptions: {
         model: string;
         temperature?: number;
@@ -127,14 +140,14 @@ export default function ChatPage({ selectedModel, temperature, systemPrompt, pre
 
       let response;
       try {
-        response = await window.puter.ai.chat(conversationHistory, chatOptions);
+        response = await window.puter!.ai!.chat(conversationHistory, chatOptions);
       } catch (err: any) {
         if (err?.error?.message?.includes('temperature')) {
           const fallbackOptions = {
             model: selectedModel,
             stream: true,
           };
-          response = await window.puter.ai.chat(conversationHistory, fallbackOptions);
+          response = await window.puter!.ai!.chat(conversationHistory, fallbackOptions);
         } else {
           throw err;
         }
