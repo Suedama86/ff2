@@ -7,23 +7,7 @@ import { DEFAULT_MODEL, DEFAULT_TEMPERATURE, getModelById } from "@/lib/models";
 import { nanoid } from "nanoid";
 import { useToast } from "@/hooks/use-toast";
 import { saveConversation, createConversation } from "@/lib/storage";
-
-declare global {
-  interface Window {
-    puter: {
-      ai: {
-        chat: (
-          prompt: string | Array<{ role: string; content: string }>,
-          options?: {
-            model?: string;
-            temperature?: number;
-            stream?: boolean;
-          }
-        ) => Promise<any>;
-      };
-    };
-  }
-}
+import { ensurePuterAuth } from "@/lib/puter-auth";
 
 interface ChatPageProps {
   selectedModel: string;
@@ -111,6 +95,9 @@ export default function ChatPage({ selectedModel, temperature, systemPrompt, pre
 
     try {
       abortControllerRef.current = new AbortController();
+
+      // Ensure user is authenticated before making API calls
+      await ensurePuterAuth();
 
       const chatOptions: {
         model: string;
